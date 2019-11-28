@@ -6,82 +6,133 @@ use Illuminate\Database\Eloquent\Model;
 
 class Scrub extends Command
 {
-	protected $signature = 'carwash:scrub';
-	protected $description = 'Scrub data in the database';
-	protected $faker;
+    /**
+     * @var string
+     */
+    protected $signature = 'carwash:scrub';
 
-	public function __construct(Faker\Factory $faker)
-	{
-		$locale = config('carwash.locale', config('app.locale'));
+    /**
+     * @var string
+     */
+    protected $description = 'Scrub data in the database';
 
-		$this->faker = $faker->create($locale);
+    /**
+     * @var Faker\Generator
+     */
+    protected $faker;
 
-		parent::__construct();
-	}
+    /**
+     * Scrub constructor.
+     * @param Faker\Factory $faker
+     */
+    public function __construct(Faker\Factory $faker)
+    {
+        $locale = config('carwash.locale', config('app.locale'));
 
-	public function handle()
-	{
-		$this->info("Entering Carwash...");
-		$this->line("");
+        $this->faker = $faker->create($locale);
 
-		collect(config('carwash.tables'))->each(function ($fields, $table) {
-			$this->info("Scrubbing table <error>{$table}</error>...");
+        parent::__construct();
+    }
 
-			$records = $this->getRecordsFromTable($table);
-			$this->info("Found {$records->count()} records...");
-			$records->each(function ($record) use ($fields, $table) {
-				$this->scrubRecord((array)$record, $table, $fields);
-			});
+    /**
+     *
+     */
+    public function handle()
+    {
+        $this->info('Entering Carwash...');
+        $this->line('');
 
-			$this->info("<error>{$table}</error> table scrubbed.");
-			$this->line("");
-		});
+        collect(config('carwash.tables'))->each(function (array $fields, string $table) {
+            $this->info(sprintf('Scrubbing table <error>%s</error>...', $table));
 
-		$this->info("...Exiting Carwash");
-	}
+            $records = $this->getRecordsFromTable($table);
+            $total = $records->count();
 
-	private function scrubRecord($record, $table, $fields)
-	{
-		$this->makeModel($table, $record)->update($this->getUpdateData($fields, $record));
-	}
+            $this->info(sprintf('Found %d records...', $total));
 
-	private function getUpdateData($fields, $record)
-	{
-		if (is_callable($fields)) {
-			return $fields($this->faker, $record);
-		}
+            $progressBar = $this->output->createProgressBar($total);
+            $progressBar->start();
 
-		return collect($fields)->mapWithKeys(function ($fakerKey, $field) use ($record) {
-			if (is_callable($fakerKey)) {
-				return [$field => $fakerKey($this->faker, $record[$field])];
-			}
+            $records->each(function ($record) use ($fields, $table, $progressBar) {
+                $this->scrubRecord((array) $record, $table, $fields);
 
-			if (str_contains($fakerKey, ':')) {
-				$formatter = explode(":", $fakerKey)[0];
-				$arguments = explode(",", explode(":", $fakerKey)[1]);
+                $progressBar->advance();
+            });
 
-				return [$field => $this->faker->{$formatter}(...$arguments)];
-			}
+            $progressBar->finish();
 
-			return [$field => $this->faker->{$fakerKey}];
-		})->toArray();
-	}
+            $this->info(sprintf('<error>%s</error> table scrubbed.', $table));
+            $this->line('');
+        });
 
-	private function getRecordsFromTable($table)
-	{
-		return \DB::table($table)->get();
-	}
+        $this->info('Exiting Carwash...');
+    }
 
-	private function makeModel($table, $attributes)
-	{
-		return tap(new class extends Model
-		{
-			public $exists = true;
-			protected $guarded = [];
-		}, function ($model) use ($table, $attributes) {
-			$model->setTable($table);
-			$model->fill($attributes);
-		});
-	}
+    /**
+     * @param $record
+     * @param $table
+     * @param $fields
+     */
+    private function scrubRecord($record, $table, $fields)
+    {
+        $this->makeModel($table, $record)->update($this->getUpdateData($fields, $record));
+    }
+
+    /**
+     * @param $fields
+     * @param $record
+     * @return mixed
+     */
+    private function getUpdateData($fields, $record)
+    {
+        if (is_callable($fields)) {
+            return $fields($this->faker, $record);
+        }
+
+        return collect($fields)->mapWithKeys(function ($fakerKey, $field) use ($record) {
+            if (is_null($fakerKey)) {
+                return [$field => null];
+            }
+
+            if (is_callable($fakerKey)) {
+                return [$field => $fakerKey($this->faker, $record[$field])];
+            }
+
+            if (str_contains($fakerKey, ':')) {
+                $formatter = explode(":", $fakerKey)[0];
+                $arguments = explode(",", explode(":", $fakerKey)[1]);
+
+                return [$field => $this->faker->{$formatter}(...$arguments)];
+            }
+
+            return [$field => $this->faker->{$fakerKey}];
+        })->toArray();
+    }
+
+    /**
+     * @param $table
+     * @return mixed
+     */
+    private function getRecordsFromTable($table)
+    {
+        return \DB::table($table)->get();
+    }
+
+    /**
+     * @param $table
+     * @param $attributes
+     * @return mixed
+     */
+    private function makeModel($table, $attributes)
+    {
+        return tap(new class extends Model
+        {
+            public $exists = true;
+            protected $guarded = [];
+        }, function ($model) use ($table, $attributes) {
+            $model->setTable($table);
+            $model->fill($attributes);
+        });
+    }
 
 }
