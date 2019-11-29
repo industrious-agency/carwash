@@ -1,5 +1,6 @@
 <?php namespace Carwash;
 
+use DB;
 use Faker\Generator;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 
@@ -26,6 +27,7 @@ class ScrubTest extends TestCase
         $this->artisan('carwash:scrub');
 
         $user1 = $this->findUser(1);
+
         $this->assertNotEquals('George', $user1->first_name);
         $this->assertNotEquals('Costanza', $user1->last_name);
         $this->assertNotEquals('gcostanza@hotmail.com', $user1->email);
@@ -55,9 +57,11 @@ class ScrubTest extends TestCase
         };
 
         $this->app->config['carwash'] = [
-            'users' => [
-                'first_name' => $formatter,
-            ],
+            'tables' => [
+                'users' => [
+                    'first_name' => $formatter,
+                ],
+            ]
         ];
 
         $this->addUser([
@@ -76,9 +80,11 @@ class ScrubTest extends TestCase
     public function testThatArgumentsCanBePassedToFormatters()
     {
         $this->app->config['carwash'] = [
-            'users' => [
-                'first_name' => 'words:3,true',
-            ],
+            'tables' => [
+                'users' => [
+                    'first_name' => 'words:3,true',
+                ],
+            ]
         ];
         $this->addUser([
             'id' => 1,
@@ -104,27 +110,29 @@ class ScrubTest extends TestCase
         ];
 
         $this->app['config']['carwash'] = [
-            'users' => new class ($this, $user)
-            {
-                private $test;
-                private $user;
-
-                public function __construct(TestCase $test, array $user)
+            'tables' => [
+                'users' => new class ($this, $user)
                 {
-                    $this->test = $test;
-                    $this->user = $user;
-                }
+                    private $test;
+                    private $user;
 
-                public function __invoke($faker, $record)
-                {
-                    $this->test->assertInstanceOf(Generator::class, $faker);
-                    $this->test->assertArraySubset($this->user, $record);
+                    public function __construct(TestCase $test, array $user)
+                    {
+                        $this->test = $test;
+                        $this->user = $user;
+                    }
 
-                    return [
-                        'first_name' => 'Foo'
-                    ];
+                    public function __invoke($faker, $record)
+                    {
+                        $this->test->assertInstanceOf(Generator::class, $faker);
+                        $this->test->assertArraySubset($this->user, $record);
+
+                        return [
+                            'first_name' => 'Foo'
+                        ];
+                    }
                 }
-            }
+            ]
         ];
 
         $this->addUser($user);
@@ -146,14 +154,16 @@ class ScrubTest extends TestCase
         ];
 
         $this->app['config']['carwash'] = [
-            'users' => function ($faker, $record) use ($user) {
-                $this->assertInstanceOf(Generator::class, $faker);
-                $this->assertArraySubset($user, $record);
+            'tables' => [
+                'users' => function ($faker, $record) use ($user) {
+                    $this->assertInstanceOf(Generator::class, $faker);
+                    $this->assertArraySubset($user, $record);
 
-                return [
-                    'first_name' => 'Foo',
-                ];
-            }
+                    return [
+                        'first_name' => 'Foo',
+                    ];
+                }
+            ]
         ];
 
         $this->addUser($user);
@@ -168,25 +178,27 @@ class ScrubTest extends TestCase
     private function addConfig()
     {
         $this->app->config['carwash'] = [
-            'users' => [
-                'first_name' => 'firstName',
-                'last_name' => 'lastName',
-                'email' => 'safeEmail',
-                'password' => function ($faker) {
-                    return $faker->password;
-                },
-            ],
+            'tables' => [
+                'users' => [
+                    'first_name' => 'firstName',
+                    'last_name' => 'lastName',
+                    'email' => 'safeEmail',
+                    'password' => function ($faker) {
+                        return $faker->password;
+                    },
+                ],
+            ]
         ];
     }
 
     private function addUser($user)
     {
-        \DB::table('users')->insert($user);
+        DB::table('users')->insert($user);
     }
 
     private function findUser($id)
     {
-        return \DB::table('users')->find($id);
+        return DB::table('users')->find($id);
     }
 
 }

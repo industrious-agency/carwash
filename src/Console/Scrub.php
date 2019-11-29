@@ -42,7 +42,7 @@ class Scrub extends Command
         $this->info('Entering Carwash...');
         $this->line('');
 
-        collect(config('carwash.tables'))->each(function (array $fields, string $table) {
+        collect(config('carwash.tables'))->each(function ($fields, string $table) {
             $this->info(sprintf('Scrubbing table <error>%s</error>...', $table));
 
             $records = $this->getRecordsFromTable($table);
